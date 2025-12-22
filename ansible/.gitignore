@@ -1,0 +1,25 @@
+# Fichiers de retry Ansible
+*.retry
+
+# Fichiers temporaires et logs
+*.log
+*.swp
+
+# macOS
+.DS_Store
+
+# Clés privées (sécurité)
+*.pem
+*.key
+id_rsa
+
+# Dossiers de rôles installés via ansible-galaxy (optionnel, si vous utilisez requirements.yml)
+# roles/external/
+
+# Environnement virtuel Python (si utilisé)
+venv/
+.env
+
+# Inventaires sensibles
+inventories/prod/hosts.ini
+

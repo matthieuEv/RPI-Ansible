@@ -1,0 +1,10 @@
+---
+- name: Configuration des serveurs
+  hosts: servers
+  become: yes
+  roles:
+    - common
+    # - ssh_hardening
+    # - ufw
+    # - wireguard
+    # - crowdsec
