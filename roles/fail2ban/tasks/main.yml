@@ -1,0 +1,81 @@
+---
+# Tasks for fail2ban role
+
+- name: Install fail2ban
+  apt:
+    name: fail2ban
+    state: present
+    update_cache: yes
+
+- name: Create fail2ban local config
+  copy:
+    dest: /etc/fail2ban/jail.local
+    content: |
+      [DEFAULT]
+      # Ban for 1 hour
+      bantime = 3600
+      # Find 5 failures within 10 minutes
+      findtime = 600
+      maxretry = 5
+      
+      # Use UFW for banning
+      banaction = ufw
+      
+      # Ignore local networks
+      ignoreip = 127.0.0.1/8 ::1 10.8.0.0/24
+      
+      # Email notifications (optional)
+      # destemail = your@email.com
+      # sender = fail2ban@yourdomain.com
+      # action = %(action_mwl)s
+      
+      [sshd]
+      enabled = false  # SSH only via WireGuard, not needed
+      
+      [nginx-http-auth]
+      enabled = true
+      port = http,https
+      logpath = /var/log/nginx/*error*.log
+      maxretry = 3
+      
+      [nginx-botsearch]
+      enabled = true
+      port = http,https
+      logpath = /var/log/nginx/*access*.log
+      maxretry = 2
+      
+      [nginx-bad-request]
+      enabled = true
+      port = http,https
+      logpath = /var/log/nginx/*access*.log
+      maxretry = 3
+      
+      # Nginx Proxy Manager specific
+      [npm-general]
+      enabled = true
+      port = http,https
+      logpath = /data/logs/proxy-host-*_access.log
+      maxretry = 5
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart fail2ban
+
+# Custom filter for Nginx Proxy Manager
+- name: Create NPM filter for bad requests
+  copy:
+    dest: /etc/fail2ban/filter.d/npm-general.conf
+    content: |
+      [Definition]
+      failregex = ^<HOST> .* "(GET|POST|HEAD).*HTTP.*" (400|401|403|404|444) .*$
+      ignoreregex = \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart fail2ban
+
+- name: Enable and start fail2ban
+  systemd:
+    name: fail2ban
+    enabled: yes
+    state: started

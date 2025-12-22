@@ -1,132 +1,132 @@
 # RPi Ansible
 
-Playbooks Ansible pour configurer et sécuriser un Raspberry Pi.
+Ansible playbooks to configure and secure a Raspberry Pi.
 
-## Prérequis
+## Prerequisites
 
 - Ansible 2.9+
-- Un Raspberry Pi avec Raspberry Pi OS (ou Debian)
-- Accès SSH au Pi
+- A Raspberry Pi with Raspberry Pi OS (or Debian)
+- SSH access to the Pi
 
-## Installation rapide
+## Quick Installation
 
-### 1. Configurer l'inventaire
+### 1. Configure the inventory
 
 ```bash
 cp inventories/prod/hosts.ini.example inventories/prod/hosts.ini
 cp inventories/prod/group_vars/all/secrets.yml.example inventories/prod/group_vars/all/secrets.yml
 ```
 
-Éditez `inventories/prod/hosts.ini` avec l'IP de votre Pi.
+Edit `inventories/prod/hosts.ini` with your Pi's IP address.
 
-### 2. Configurer les variables
+### 2. Configure the variables
 
-Éditez `inventories/prod/group_vars/all/main.yml` et vérifiez **l'interface réseau externe** :
+Edit `inventories/prod/group_vars/all/main.yml` and verify the **external network interface**:
 
 ```bash
-# Connectez-vous au Pi/serveur et trouvez l'interface réseau
+# Connect to the Pi/server and find the network interface
 ip route | grep default
-# Exemple de sortie : default via 192.168.1.1 dev eth0
+# Example output: default via 192.168.1.1 dev eth0
 ```
 
-Mettez à jour `external_interface` avec le nom de l'interface (ex: `eth0`, `end0`, `ens160`, `wlan0`) :
+Update `external_interface` with the interface name (e.g., `eth0`, `end0`, `ens160`, `wlan0`):
 
 ```yaml
 wireguard:
-  external_interface: eth0  # ← Adapter selon votre machine
+  external_interface: eth0  # ← Adapt according to your machine
 ```
 
-### 3. Lancer le playbook
+### 3. Run the playbook
 
 ```bash
 ansible-playbook playbooks/site.yml -K
 ```
 
-**Notez la clé publique du serveur WireGuard** qui s'affiche à la fin - vous en aurez besoin pour le client.
+**Note the WireGuard server public key** displayed at the end - you'll need it for the client.
 
 ---
 
-## Configuration du client VPN (WireGuard)
+## VPN Client Configuration (WireGuard)
 
-### Étape 1 : Installer l'app WireGuard
+### Step 1: Install the WireGuard app
 
-| Plateforme | Installation |
+| Platform | Installation |
 |------------|--------------|
 | **macOS** | [App Store](https://apps.apple.com/app/wireguard/id1451685025) |
 | **Windows** | [wireguard.com/install](https://www.wireguard.com/install/) |
 | **iOS** | App Store → "WireGuard" |
 | **Android** | Play Store → "WireGuard" |
 
-### Étape 2 : Créer un tunnel
+### Step 2: Create a tunnel
 
-1. Ouvrez l'app WireGuard
-2. Cliquez sur **"+"** → **"Ajouter un tunnel vide"** (ou "Add empty tunnel")
-3. L'app génère automatiquement une **clé privée** et affiche la **clé publique**
-4. **Copiez la clé publique** affichée
+1. Open the WireGuard app
+2. Click on **"+"** → **"Add empty tunnel"**
+3. The app automatically generates a **private key** and displays the **public key**
+4. **Copy the displayed public key**
 
-### Étape 3 : Ajouter le client dans Ansible
+### Step 3: Add the client in Ansible
 
-Éditez `inventories/prod/group_vars/all/secrets.yml` (ignoré par git) :
+Edit `inventories/prod/group_vars/all/secrets.yml` (ignored by git):
 
 ```yaml
 wireguard_peers:
-  - name: mon-appareil
-    public_key: "COLLEZ_LA_CLE_PUBLIQUE_ICI"
+  - name: my-device
+    public_key: "PASTE_PUBLIC_KEY_HERE"
     allowed_ips: "10.8.0.2/32"
 ```
 
-> **Note** : Créez ce fichier à partir de l'exemple si nécessaire :
+> **Note**: Create this file from the example if needed:
 > ```bash
 > cp inventories/prod/group_vars/all/secrets.yml.example inventories/prod/group_vars/all/secrets.yml
 > ```
 
-Relancez le playbook :
+Re-run the playbook:
 
 ```bash
 ansible-playbook playbooks/site.yml -K
 ```
 
-### Étape 4 : Compléter la configuration dans l'app
+### Step 4: Complete the configuration in the app
 
-Dans l'app WireGuard, complétez la configuration du tunnel :
+In the WireGuard app, complete the tunnel configuration:
 
 ```ini
 [Interface]
-PrivateKey = (déjà rempli automatiquement)
+PrivateKey = (already filled automatically)
 Address = 10.8.0.2/32
 DNS = 1.1.1.1
 
 [Peer]
-PublicKey = CLE_PUBLIQUE_SERVEUR
-Endpoint = IP_PUBLIQUE_DU_PI:51820
+PublicKey = SERVER_PUBLIC_KEY
+Endpoint = PI_PUBLIC_IP:51820
 AllowedIPs = 10.8.0.0/24
 PersistentKeepalive = 25
 ```
 
-Remplacez :
-- `CLE_PUBLIQUE_SERVEUR` : clé affichée lors du playbook
-- `IP_PUBLIQUE_DU_PI` : IP publique de votre box (ou IP locale si même réseau)
+Replace:
+- `SERVER_PUBLIC_KEY`: key displayed during playbook execution
+- `PI_PUBLIC_IP`: public IP of your router (or local IP if on same network)
 
-### Étape 5 : Se connecter
+### Step 5: Connect
 
-Activez le tunnel dans l'app WireGuard !
+Activate the tunnel in the WireGuard app!
 
-Test : `ping 10.8.0.1` ou `ssh user@10.8.0.1`
-
----
-
-## Ajouter d'autres appareils
-
-Pour chaque nouvel appareil :
-1. Installez l'app WireGuard
-2. Créez un tunnel vide → copiez la clé publique
-3. Ajoutez un peer dans `all.yml` avec une IP unique (`10.8.0.3/32`, `10.8.0.4/32`, etc.)
-4. Relancez le playbook
-5. Configurez le tunnel dans l'app
+Test: `ping 10.8.0.1` or `ssh user@10.8.0.1`
 
 ---
 
-## Structure du projet
+## Adding More Devices
+
+For each new device:
+1. Install the WireGuard app
+2. Create an empty tunnel → copy the public key
+3. Add a peer in `all.yml` with a unique IP (`10.8.0.3/32`, `10.8.0.4/32`, etc.)
+4. Re-run the playbook
+5. Configure the tunnel in the app
+
+---
+
+## Project Structure
 
 ```
 rpi-ansible/
@@ -143,12 +143,12 @@ rpi-ansible/
     └── crowdsec/
 ```
 
-## Rôles disponibles
+## Available Roles
 
-| Rôle | Description |
+| Role | Description |
 |------|-------------|
-| common | Configuration de base (timezone, paquets) |
-| ssh_hardening | Sécurisation SSH |
+| common | Basic configuration (timezone, packages) |
+| ssh_hardening | SSH hardening |
 | ufw | Firewall |
-| wireguard | VPN WireGuard |
-| crowdsec | Protection contre les intrusions |
+| wireguard | WireGuard VPN |
+| crowdsec | Intrusion protection |

@@ -15,6 +15,7 @@
       - htop
       - unattended-upgrades
       - iptables
+      - fastfetch
     state: present
 
 - name: Configure unattended-upgrades (enable auto updates)

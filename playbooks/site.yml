@@ -1,5 +1,5 @@
 ---
-- name: Configuration des serveurs
+- name: Server configuration
   hosts: servers
   become: yes
   roles:
@@ -7,4 +7,5 @@
     - ssh_hardening
     - wireguard
     - ufw
-    # - crowdsec
+    - crowdsec
+    - fail2ban

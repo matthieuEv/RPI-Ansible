@@ -1,2 +1,73 @@
 ---
 # Tasks for crowdsec role
+# Following official documentation: https://docs.crowdsec.net/u/getting_started/installation/linux
+
+- name: Install curl
+  apt:
+    name: curl
+    state: present
+    update_cache: yes
+
+- name: Check if CrowdSec repo is already installed
+  stat:
+    path: /etc/apt/sources.list.d/crowdsec_crowdsec.list
+  register: crowdsec_repo
+
+- name: Add CrowdSec repository
+  shell: curl -s https://install.crowdsec.net | sh
+  when: not crowdsec_repo.stat.exists
+
+- name: Install CrowdSec
+  apt:
+    name: crowdsec
+    state: present
+    update_cache: yes
+
+- name: Install CrowdSec Firewall Bouncer (iptables)
+  apt:
+    name: crowdsec-firewall-bouncer-iptables
+    state: present
+
+# Collections to protect web services
+- name: Install CrowdSec collections
+  command: "cscli collections install {{ item }}"
+  loop:
+    - crowdsecurity/linux
+    - crowdsecurity/nginx
+    - crowdsecurity/http-cve
+    - crowdsecurity/whitelist-good-actors
+  register: cscli_result
+  changed_when: "'overwrite' not in cscli_result.stderr"
+  failed_when: false
+
+# Parser for Nginx Proxy Manager (logs in a specific format)
+- name: Create Nginx Proxy Manager acquis config
+  copy:
+    dest: /etc/crowdsec/acquis.d/nginx-proxy-manager.yaml
+    content: |
+      filenames:
+        - /var/log/nginx/*.log
+        - /data/logs/proxy-host-*_access.log
+      labels:
+        type: nginx
+      ---
+      filenames:
+        - /data/logs/proxy-host-*_error.log
+      labels:
+        type: nginx
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart crowdsec
+
+- name: Enable and start CrowdSec
+  systemd:
+    name: crowdsec
+    enabled: yes
+    state: started
+
+- name: Enable and start CrowdSec Firewall Bouncer
+  systemd:
+    name: crowdsec-firewall-bouncer
+    enabled: yes
+    state: started
