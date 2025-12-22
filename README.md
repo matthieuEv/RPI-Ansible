@@ -19,7 +19,24 @@ cp inventories/prod/group_vars/all/secrets.yml.example inventories/prod/group_va
 
 Edit `inventories/prod/hosts.ini` with your Pi's IP address.
 
-### 2. Configure the variables
+### 2. Configure the secrets
+
+Edit `inventories/prod/group_vars/all/secrets.yml` and add your SSH public key:
+
+```yaml
+# SSH public key for remote access
+ssh_authorized_key: "ssh-ed25519 AAAA... your-email@example.com"
+```
+
+> **Tip**: If you don't have an SSH key yet, generate one with:
+> ```bash
+> ssh-keygen -t ed25519 -C "your-email@example.com"
+> cat ~/.ssh/id_ed25519.pub  # Copy this public key
+> ```
+
+This key will be added to the server's `authorized_keys`, allowing you to connect via SSH through WireGuard without a password.
+
+### 3. Configure the variables
 
 Edit `inventories/prod/group_vars/all/main.yml` and verify the **external network interface**:
 
@@ -36,7 +53,7 @@ wireguard:
   external_interface: eth0  # ← Adapt according to your machine
 ```
 
-### 3. Run the playbook
+### 4. Run the playbook
 
 ```bash
 ansible-playbook playbooks/site.yml -K

@@ -46,3 +46,10 @@
     line: 'X11Forwarding no'
     validate: 'sshd -t -f %s'
   notify: Restart ssh
+
+- name: Add authorized SSH key
+  authorized_key:
+    user: "{{ ansible_user }}"
+    key: "{{ ssh_authorized_key }}"
+    state: present
+  when: ssh_authorized_key is defined and ssh_authorized_key | length > 0
