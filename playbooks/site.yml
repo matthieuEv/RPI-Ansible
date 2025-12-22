@@ -4,7 +4,7 @@
   become: yes
   roles:
     - common
-    # - ssh_hardening
-    # - ufw
-    # - wireguard
+    - ssh_hardening
+    - wireguard
+    - ufw
     # - crowdsec

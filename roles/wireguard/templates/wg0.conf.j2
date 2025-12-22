@@ -1,1 +1,17 @@
-# Wireguard configuration template
+[Interface]
+Address = {{ wireguard.server_ip }}
+ListenPort = {{ wireguard.listen_port }}
+PrivateKey = {{ wireguard_private_key }}
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o {{ wireguard.external_interface | default('eth0') }} -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o {{ wireguard.external_interface | default('eth0') }} -j MASQUERADE
+
+{% for peer in wireguard_peers %}
+# {{ peer.name }}
+[Peer]
+PublicKey = {{ peer.public_key }}
+AllowedIPs = {{ peer.allowed_ips }}
+{% if peer.preshared_key is defined %}
+PresharedKey = {{ peer.preshared_key }}
+{% endif %}
+
+{% endfor %}

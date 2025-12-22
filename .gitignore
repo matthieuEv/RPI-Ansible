@@ -23,3 +23,6 @@ venv/
 # Inventaires sensibles
 inventories/prod/hosts.ini
 
+# Secrets (clés WireGuard, etc.)
+inventories/prod/group_vars/all/secrets.yml
+

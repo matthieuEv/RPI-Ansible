@@ -7,7 +7,4 @@ wireguard:
   server_ip: "10.8.0.1/24"
   listen_port: 51820
   interface: wg0
-  peers:
-    - name: macbook
-      public_key: "PUT_CLIENT_PUBLIC_KEY_HERE"
-      allowed_ips: "10.8.0.2/32"
+  external_interface: eth0

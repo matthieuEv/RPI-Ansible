@@ -1,0 +1,6 @@
+---
+- name: Restart wireguard
+  systemd:
+    name: "wg-quick@{{ wireguard.interface }}"
+    state: restarted
+    enabled: yes

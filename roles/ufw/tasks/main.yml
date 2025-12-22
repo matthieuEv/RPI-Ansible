@@ -1,2 +1,48 @@
 ---
 # Tasks for ufw role
+
+- name: Install UFW
+  apt:
+    name: ufw
+    state: present
+    update_cache: yes
+
+- name: Set default policy to deny incoming
+  ufw:
+    direction: incoming
+    policy: deny
+
+- name: Set default policy to allow outgoing
+  ufw:
+    direction: outgoing
+    policy: allow
+
+- name: Allow HTTP
+  ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
+
+- name: Allow HTTPS
+  ufw:
+    rule: allow
+    port: "443"
+    proto: tcp
+
+- name: Allow WireGuard
+  ufw:
+    rule: allow
+    port: "{{ wireguard.listen_port }}"
+    proto: udp
+
+- name: Allow SSH from WireGuard interface only
+  ufw:
+    rule: allow
+    direction: in
+    interface: "{{ wireguard.interface }}"
+    port: "{{ ssh_port }}"
+    proto: tcp
+
+- name: Enable UFW
+  ufw:
+    state: enabled

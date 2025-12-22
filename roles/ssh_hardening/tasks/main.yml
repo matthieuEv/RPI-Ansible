@@ -1,2 +1,48 @@
 ---
-# Tasks for ssh_hardening role
+- name: Ensure SSH port is set
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?Port'
+    line: "Port {{ ssh_port }}"
+    validate: 'sshd -t -f %s'
+  notify: Restart ssh
+
+- name: Disable root login
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin'
+    line: 'PermitRootLogin no'
+    validate: 'sshd -t -f %s'
+  notify: Restart ssh
+
+- name: Configure password authentication
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication'
+    line: "PasswordAuthentication {{ 'yes' if ssh_allow_password_auth else 'no' }}"
+    validate: 'sshd -t -f %s'
+  notify: Restart ssh
+
+- name: Disable empty passwords
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitEmptyPasswords'
+    line: 'PermitEmptyPasswords no'
+    validate: 'sshd -t -f %s'
+  notify: Restart ssh
+
+- name: Disable ChallengeResponseAuthentication
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?ChallengeResponseAuthentication'
+    line: 'ChallengeResponseAuthentication no'
+    validate: 'sshd -t -f %s'
+  notify: Restart ssh
+
+- name: Disable X11 Forwarding
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?X11Forwarding'
+    line: 'X11Forwarding no'
+    validate: 'sshd -t -f %s'
+  notify: Restart ssh
