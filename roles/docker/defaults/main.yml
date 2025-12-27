@@ -1,4 +1,4 @@
 ---
-docker_setups_dir: "{{ ansible_user_dir }}/docker-setups"
-nginx_proxy_manager_data_dir: "{{ ansible_user_dir }}/proxymanager/data"
-nginx_proxy_manager_letsencrypt_dir: "{{ ansible_user_dir }}/proxymanager/letsencrypt"
+docker_setups_dir: "{{ ansible_facts['user_dir'] }}/docker-setups"
+nginx_proxy_manager_data_dir: "{{ ansible_facts['user_dir'] }}/proxymanager/data"
+nginx_proxy_manager_letsencrypt_dir: "{{ ansible_facts['user_dir'] }}/proxymanager/letsencrypt"
