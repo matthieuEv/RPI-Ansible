@@ -154,6 +154,7 @@ rpi-ansible/
 ├── playbooks/site.yml
 └── roles/
     ├── common/
+    ├── docker/
     ├── ssh_hardening/
     ├── ufw/
     ├── wireguard/
@@ -165,6 +166,7 @@ rpi-ansible/
 | Role | Description |
 |------|-------------|
 | common | Basic configuration (timezone, packages) |
+| docker | Docker + Portainer + Nginx Proxy Manager |
 | ssh_hardening | SSH hardening |
 | ufw | Firewall |
 | wireguard | WireGuard VPN |
