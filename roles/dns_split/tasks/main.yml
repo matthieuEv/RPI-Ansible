@@ -1,0 +1,37 @@
+---
+- name: Install dnsmasq
+  apt:
+    name: dnsmasq
+    state: present
+    update_cache: yes
+
+- name: Stop systemd-resolved if running (conflicts with dnsmasq)
+  systemd:
+    name: systemd-resolved
+    state: stopped
+    enabled: no
+  ignore_errors: yes
+
+- name: Deploy dnsmasq configuration
+  template:
+    src: dnsmasq.conf.j2
+    dest: /etc/dnsmasq.d/split-dns.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart dnsmasq
+
+- name: Ensure dnsmasq listens on WireGuard interface
+  template:
+    src: dnsmasq-wireguard.conf.j2
+    dest: /etc/dnsmasq.d/wireguard.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart dnsmasq
+
+- name: Enable dnsmasq service
+  systemd:
+    name: dnsmasq
+    enabled: yes
+    state: started

@@ -32,13 +32,19 @@
 
 - name: Set Docker repository variables
   set_fact:
+    docker_arch: "{{ _docker_arch }}"
     docker_repo_os: "{{ docker_repo_os | default(_docker_repo_os) }}"
     docker_repo_codename: "{{ docker_repo_codename | default(_docker_repo_codename) }}"
   vars:
+    # Determine Docker architecture
+    _docker_arch: >-
+      {{ 'arm64' if ansible_facts['architecture'] in ['aarch64', 'arm64']
+         else 'armhf' if ansible_facts['architecture'] in ['armv7l', 'armhf']
+         else 'amd64' }}
+    # Use 'debian' for 64-bit, 'raspbian' only for 32-bit ARM
     _docker_repo_os: >-
       {{ 'raspbian'
-         if (ansible_facts['distribution'] | lower) in ['raspbian', 'raspberry pi os']
-            or ansible_facts['architecture'] in ['armv6l', 'armv7l', 'armhf']
+         if ansible_facts['architecture'] in ['armv6l', 'armv7l', 'armhf']
          else 'debian' }}
     _docker_repo_codename_raw: >-
       {{
@@ -46,7 +52,15 @@
         if (ansible_facts['distribution_release'] | default('')) not in ['n/a', '']
         else (ansible_facts.get('lsb', {}).get('codename', '') | default(''))
       }}
-    _docker_repo_codename: "{{ _docker_repo_codename_raw | lower | regex_replace('/.*$', '') }}"
+    _docker_repo_codename_norm: "{{ _docker_repo_codename_raw | lower | regex_replace('/.*$', '') }}"
+    _docker_repo_codename: >-
+      {{ 'bookworm'
+         if _docker_repo_codename_norm in ['trixie', 'sid', 'testing', 'unstable']
+         else _docker_repo_codename_norm }}
+
+- name: Debug Docker repository settings
+  debug:
+    msg: "Docker repo: {{ docker_repo_os }}/{{ docker_repo_codename }} (arch: {{ docker_arch }})"
 
 - name: Add Docker apt repository
   copy:
@@ -56,12 +70,86 @@
       URIs: https://download.docker.com/linux/{{ docker_repo_os }}
       Suites: {{ docker_repo_codename }}
       Components: stable
+      Architectures: {{ docker_arch }}
       Signed-By: /etc/apt/keyrings/docker.asc
     mode: '0644'
 
 - name: Update apt cache after adding Docker repo
   apt:
     update_cache: yes
+
+- name: Debug Docker apt source file
+  command: cat /etc/apt/sources.list.d/docker.sources
+  register: docker_sources_file
+  changed_when: false
+  failed_when: false
+
+- name: Debug Docker apt source content
+  debug:
+    var: docker_sources_file.stdout
+
+- name: Debug Docker keyring file
+  stat:
+    path: /etc/apt/keyrings/docker.asc
+  register: docker_keyring_stat
+
+- name: Debug Docker keyring stat
+  debug:
+    var: docker_keyring_stat
+
+- name: Debug apt-get update output
+  command: apt-get update
+  register: docker_apt_update
+  changed_when: false
+  failed_when: false
+
+- name: Debug apt-get update stdout
+  debug:
+    var: docker_apt_update.stdout_lines
+
+- name: Debug apt-get update stderr
+  debug:
+    var: docker_apt_update.stderr_lines
+
+- name: Debug apt lists timestamps
+  command: ls -lt /var/lib/apt/lists
+  register: docker_apt_lists
+  changed_when: false
+  failed_when: false
+
+- name: Debug apt lists
+  debug:
+    var: docker_apt_lists.stdout_lines
+
+- name: Debug Docker list files
+  shell: ls -1 /var/lib/apt/lists | grep -E 'download.docker.com.*(InRelease|Packages)' || true
+  register: docker_repo_lists
+  changed_when: false
+  failed_when: false
+
+- name: Debug Docker list files output
+  debug:
+    var: docker_repo_lists.stdout_lines
+
+- name: Debug docker-ce policy
+  command: apt-cache policy docker-ce
+  register: docker_ce_policy
+  changed_when: false
+  failed_when: false
+
+- name: Debug docker-ce policy output
+  debug:
+    var: docker_ce_policy.stdout_lines
+
+- name: Debug docker-ce madison
+  command: apt-cache madison docker-ce
+  register: docker_ce_madison
+  changed_when: false
+  failed_when: false
+
+- name: Debug docker-ce madison output
+  debug:
+    var: docker_ce_madison.stdout_lines
 
 - name: Install Docker packages
   apt:
@@ -85,6 +173,12 @@
     enabled: yes
     state: started
 
+- name: Create shared Docker network for reverse proxy
+  community.docker.docker_network:
+    name: proxy_network
+    state: present
+  register: proxy_network_created
+
 - name: Ensure Docker setups directory exists
   file:
     path: "{{ docker_setups_dir }}"
@@ -100,23 +194,43 @@
     - "{{ nginx_proxy_manager_data_dir }}"
     - "{{ nginx_proxy_manager_letsencrypt_dir }}"
 
-- name: Download Portainer compose file
-  get_url:
-    url: https://downloads.portainer.io/ce-lts/portainer-compose.yaml
-    dest: "{{ docker_setups_dir }}/portainer-compose.yaml"
+- name: Write Portainer compose file
+  copy:
+    dest: "{{ docker_setups_dir }}/portainer.yml"
+    content: |
+      services:
+        portainer:
+          container_name: portainer
+          image: portainer/portainer-ce:lts
+          restart: always
+          volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - portainer_data:/data
+          ports:
+            - 9443:9443
+          networks:
+            - proxy_network
+
+      volumes:
+        portainer_data:
+          name: portainer_data
+
+      networks:
+        proxy_network:
+          external: true
     mode: '0644'
 
 - name: Deploy Portainer
-  command: docker compose -p portainer -f {{ docker_setups_dir }}/portainer-compose.yaml up -d
+  command: docker compose -p portainer -f {{ docker_setups_dir }}/portainer.yml up -d
   changed_when: false
 
 - name: Write Nginx Proxy Manager compose file
   copy:
     dest: "{{ docker_setups_dir }}/nginx.yml"
     content: |
-      version: '3'
       services:
         app:
+          container_name: nginx-proxy-manager
           image: 'jc21/nginx-proxy-manager:latest'
           restart: unless-stopped
           volumes:
@@ -126,6 +240,12 @@
             - 80:80
             - 81:81
             - 443:443
+          networks:
+            - proxy_network
+
+      networks:
+        proxy_network:
+          external: true
     mode: '0644'
 
 - name: Deploy Nginx Proxy Manager

@@ -1,0 +1,17 @@
+# Split DNS configuration for private subdomains
+# These domains will resolve to the server's WireGuard IP when accessed via VPN
+
+{% for domain in private_domains | default([]) %}
+# {{ domain.name }} - resolves to WireGuard server IP
+address=/{{ domain.subdomain }}.{{ domain.base_domain }}/{{ wireguard.server_ip | regex_replace('/\\d+$', '') }}
+{% endfor %}
+
+# Upstream DNS servers for all other queries
+server=1.1.1.1
+server=1.0.0.1
+
+# Don't read /etc/resolv.conf
+no-resolv
+
+# Log queries for debugging (comment out in production)
+# log-queries

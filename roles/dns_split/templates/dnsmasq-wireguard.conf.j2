@@ -1,0 +1,12 @@
+# Listen on WireGuard interface
+listen-address={{ wireguard.server_ip | regex_replace('/\\d+$', '') }}
+listen-address=127.0.0.1
+
+# Bind to specific interfaces only
+bind-interfaces
+
+# Don't forward queries without a domain
+domain-needed
+
+# Don't forward queries for private IP ranges
+bogus-priv

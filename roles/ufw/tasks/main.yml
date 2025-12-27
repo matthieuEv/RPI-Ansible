@@ -43,6 +43,17 @@
     port: "{{ ssh_port }}"
     proto: tcp
 
+- name: Allow DNS from WireGuard network (for Split DNS)
+  ufw:
+    rule: allow
+    port: '53'
+    proto: "{{ item }}"
+    from_ip: "10.8.0.0/24"
+  loop:
+    - tcp
+    - udp
+  when: private_domains is defined and private_domains | length > 0
+
 - name: Enable UFW
   ufw:
     state: enabled
