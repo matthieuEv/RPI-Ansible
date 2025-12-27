@@ -33,13 +33,20 @@
 - name: Set Docker repository variables
   set_fact:
     docker_repo_os: "{{ docker_repo_os | default(_docker_repo_os) }}"
-    docker_repo_codename: "{{ docker_repo_codename | default(ansible_facts['distribution_release']) }}"
+    docker_repo_codename: "{{ docker_repo_codename | default(_docker_repo_codename) }}"
   vars:
     _docker_repo_os: >-
       {{ 'raspbian'
          if (ansible_facts['distribution'] | lower) in ['raspbian', 'raspberry pi os']
             or ansible_facts['architecture'] in ['armv6l', 'armv7l', 'armhf']
          else 'debian' }}
+    _docker_repo_codename_raw: >-
+      {{
+        (ansible_facts['distribution_release'] | default(''))
+        if (ansible_facts['distribution_release'] | default('')) not in ['n/a', '']
+        else (ansible_facts.get('lsb', {}).get('codename', '') | default(''))
+      }}
+    _docker_repo_codename: "{{ _docker_repo_codename_raw | lower | regex_replace('/.*$', '') }}"
 
 - name: Add Docker apt repository
   copy:
@@ -65,6 +72,12 @@
       - docker-buildx-plugin
       - docker-compose-plugin
     state: present
+    update_cache: yes
+    cache_valid_time: 0
+  register: docker_install
+  retries: 5
+  delay: 5
+  until: docker_install is succeeded
 
 - name: Ensure Docker service is enabled and started
   systemd:
@@ -94,7 +107,7 @@
     mode: '0644'
 
 - name: Deploy Portainer
-  command: docker compose -f {{ docker_setups_dir }}/portainer-compose.yaml up -d
+  command: docker compose -p portainer -f {{ docker_setups_dir }}/portainer-compose.yaml up -d
   changed_when: false
 
 - name: Write Nginx Proxy Manager compose file
@@ -116,5 +129,5 @@
     mode: '0644'
 
 - name: Deploy Nginx Proxy Manager
-  command: docker compose -f {{ docker_setups_dir }}/nginx.yml up -d
+  command: docker compose -p nginx-proxy-manager -f {{ docker_setups_dir }}/nginx.yml up -d
   changed_when: false
