@@ -274,6 +274,8 @@ After running the playbook, connect to your VPN and access Nginx Proxy Manager:
 
 ##### Step 2: Configure Portainer Proxy Host
 
+> 💡 **First-time setup**: Before configuring the proxy, access Portainer directly at `https://10.8.0.1:9443/` to create your admin user. You must do this within a few minutes after first launch, otherwise Portainer will disable registration for security.
+
 Portainer uses HTTPS on port 9443, so the configuration is specific:
 
 1. Go to **Proxy Hosts** → **Add Proxy Host**
