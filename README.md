@@ -1,89 +1,98 @@
 # RPi Ansible
 
-Ansible playbooks to configure and secure a Raspberry Pi.
+Automated configuration of a secure Raspberry Pi with VPN, reverse proxy, and Docker services. This Ansible project transforms a Raspberry Pi (or Debian server) into a secure personal server with WireGuard VPN access, container management via Portainer, and Nginx reverse proxy to securely expose your services.
 
-## Prerequisites
+**Main features:**
+- 🔐 WireGuard VPN for secure remote access
+- 🐳 Docker + Portainer for container management
+- 🌐 Nginx Proxy Manager for reverse proxy with SSL
+- 🛡️ SSH hardening, UFW firewall, CrowdSec, Fail2ban
+- 🔀 Split DNS for private subdomains accessible only via VPN
+
+---
+
+## Table of Contents
+
+1. [Ansible Installation](#1-ansible-installation)
+2. [WireGuard Configuration](#2-wireguard-configuration)
+3. [Portainer Configuration](#3-portainer-configuration)
+4. [Nginx Proxy Manager Configuration](#4-nginx-proxy-manager-configuration)
+5. [Split DNS for Private Services](#5-split-dns-for-private-services)
+6. [Diagnostic Commands](#6-diagnostic-commands)
+
+---
+
+## 1. Ansible Installation
+
+### Prerequisites
 
 - Ansible 2.9+
 - A Raspberry Pi with Raspberry Pi OS (or Debian)
 - SSH access to the Pi
 
-## Quick Installation
-
-### 1. Configure the inventory
+### Step 1: Configure the inventory
 
 ```bash
 cp inventories/prod/hosts.ini.example inventories/prod/hosts.ini
 cp inventories/prod/group_vars/all/secrets.yml.example inventories/prod/group_vars/all/secrets.yml
 ```
 
-Edit `inventories/prod/hosts.ini` with your Pi's IP address.
+Edit `inventories/prod/hosts.ini` with your Pi's IP address you can get using `ip a | grep 192` on the Pi.
 
-### 2. Configure the secrets
+### Step 2: Configure the secrets
 
 Edit `inventories/prod/group_vars/all/secrets.yml` and add your SSH public key:
 
 ```yaml
-# SSH public key for remote access
 ssh_authorized_key: "ssh-ed25519 AAAA... your-email@example.com"
 ```
 
-> **Tip**: If you don't have an SSH key yet, generate one with:
+> **Tip**: To generate an SSH key:
 > ```bash
 > ssh-keygen -t ed25519 -C "your-email@example.com"
-> cat ~/.ssh/id_ed25519.pub  # Copy this public key
+> cat ~/.ssh/id_ed25519.pub
 > ```
 
-This key will be added to the server's `authorized_keys`, allowing you to connect via SSH through WireGuard without a password.
+### Step 3: Configure the network interface
 
-### 3. Configure the variables
-
-Edit `inventories/prod/group_vars/all/main.yml` and verify the **external network interface**:
+Find your Pi's network interface:
 
 ```bash
-# Connect to the Pi/server and find the network interface
 ip route | grep default
-# Example output: default via 192.168.1.1 dev eth0
+# Example: default via 192.168.x.x dev eth0 proto dhcp src 192.168.x.x metric 100
+#   here its "eth0"
 ```
 
-Update `external_interface` with the interface name (e.g., `eth0`, `end0`, `ens160`, `wlan0`):
+Update `inventories/prod/group_vars/all/secrets.yml`:
 
 ```yaml
 wireguard:
-  external_interface: eth0  # ← Adapt according to your machine
+  external_interface: eth0  # Adapt to your machine
 ```
 
-### 4. Run the playbook
+### Step 4: Configure WireGuard clients (before running the playbook)
 
-```bash
-ansible-playbook playbooks/site.yml -K
-```
+Before running Ansible, set up your WireGuard client(s) to avoid running the playbook twice.
 
-**Note the WireGuard server public key** displayed at the end - you'll need it for the client.
-
----
-
-## VPN Client Configuration (WireGuard)
-
-### Step 1: Install the WireGuard app
+#### Install the WireGuard app
 
 | Platform | Installation |
-|------------|--------------|
+|----------|--------------|
 | **macOS** | [App Store](https://apps.apple.com/app/wireguard/id1451685025) |
 | **Windows** | [wireguard.com/install](https://www.wireguard.com/install/) |
 | **iOS** | App Store → "WireGuard" |
 | **Android** | Play Store → "WireGuard" |
 
-### Step 2: Create a tunnel
+#### Create a tunnel and get the public key
 
 1. Open the WireGuard app
-2. Click on **"+"** → **"Add empty tunnel"**
+2. Click **"+"** → **"Add empty tunnel"**
 3. The app automatically generates a **private key** and displays the **public key**
 4. **Copy the displayed public key**
 
-### Step 3: Add the client in Ansible
+#### Add the client in secrets.yml
 
-Edit `inventories/prod/group_vars/all/secrets.yml` (ignored by git):
+Edit `inventories/prod/group_vars/all/secrets.yml`:
 
 ```yaml
 wireguard_peers:
@@ -92,20 +101,25 @@ wireguard_peers:
     allowed_ips: "10.8.0.2/32"
 ```
 
-> **Note**: Create this file from the example if needed:
-> ```bash
-> cp inventories/prod/group_vars/all/secrets.yml.example inventories/prod/group_vars/all/secrets.yml
-> ```
+> For multiple devices, add more peers with unique IPs (`10.8.0.3/32`, `10.8.0.4/32`, etc.)
 
-Re-run the playbook:
+### Step 5: Run the playbook
 
 ```bash
 ansible-playbook playbooks/site.yml -K
 ```
 
-### Step 4: Complete the configuration in the app
+> **Important**: Note the WireGuard public key displayed in the step `Display server public key`, you'll need it to finish your clients configuration.
 
-In the WireGuard app, complete the tunnel configuration:
+---
+
+## 2. WireGuard Configuration
+
+After running the playbook, complete your WireGuard client configuration.
+
+### Configure the tunnel in the app
+
+Complete the configuration in the WireGuard app:
 
 ```ini
 [Interface]
@@ -120,318 +134,192 @@ AllowedIPs = 10.8.0.0/24
 PersistentKeepalive = 25
 ```
 
-> **Important**: The DNS is set to `10.8.0.1` (WireGuard server) to enable Split DNS.
-> This allows private subdomains to resolve only when connected to the VPN.
-
 Replace:
 - `SERVER_PUBLIC_KEY`: key displayed during playbook execution
 - `PI_PUBLIC_IP`: public IP of your router (or local IP if on same network)
 
-### Step 5: Connect
+### Test the connection
 
-Activate the tunnel in the WireGuard app!
+Activate the tunnel and test:
 
-Test: `ping 10.8.0.1` or `ssh user@10.8.0.1`
+```bash
+ping 10.8.0.1
+ssh user@10.8.0.1
+```
 
----
-
-## Adding More Devices
+### Add more devices later
 
 For each new device:
-1. Install the WireGuard app
-2. Create an empty tunnel → copy the public key
-3. Add a peer in `all.yml` with a unique IP (`10.8.0.3/32`, `10.8.0.4/32`, etc.)
-4. Re-run the playbook
-5. Configure the tunnel in the app
+1. Create an empty tunnel in the WireGuard app → copy the public key
+2. Add a peer in `secrets.yml` with a unique IP (`10.8.0.3/32`, `10.8.0.4/32`, etc.)
+3. Re-run the playbook
+4. Complete the tunnel configuration in the app
 
 ---
 
-## Project Structure
+## 3. Portainer Configuration
 
-```
-rpi-ansible/
-├── ansible.cfg
-├── inventories/prod/
-│   ├── hosts.ini
-│   └── group_vars/all.yml
-├── playbooks/site.yml
-└── roles/
-    ├── common/
-    ├── dns_split/
-    ├── docker/
-    ├── ssh_hardening/
-    ├── ufw/
-    ├── wireguard/
-    └── crowdsec/
-```
+After running the playbook, Portainer is accessible via VPN.
 
-## Available Roles
+### First login
 
-| Role | Description |
-|------|-------------|
-| common | Basic configuration (timezone, packages) |
-| dns_split | Split DNS for private subdomains (dnsmasq) |
-| docker | Docker + Portainer + Nginx Proxy Manager |
-| ssh_hardening | SSH hardening |
-| ufw | Firewall |
-| wireguard | WireGuard VPN |
-| crowdsec | Intrusion protection |
+> ⚠️ **Important**: Create your admin account within minutes of first launch, otherwise Portainer will disable registration for security reasons.
+
+1. Connect to the VPN
+2. Access `https://10.8.0.1:9443/`
+3. Create your administrator account
 
 ---
 
-## Split DNS for Private Services
+## 4. Nginx Proxy Manager Configuration
 
-This setup allows you to have public and private subdomains:
-- **Public**: `example.fr` → accessible to everyone
-- **Private**: `portainer.example.fr`, `nginx.example.fr` → only accessible via WireGuard VPN
+Nginx Proxy Manager allows you to create reverse proxies with automatic SSL certificates.
+
+### First login
+
+1. Connect to the VPN
+2. Access `http://10.8.0.1:81`
+3. Create your administrator account
+
+### Create a VPN-Only Access List
+
+To restrict access to VPN users only:
+
+1. Go to **Access Lists** → **Add Access List**
+2. **Details**: Name = `Wireguard` or `VPN Only` or any name you want
+3. **Options**: Check the `Satisfy any` box
+4. **Rules**:
+   - Add `10.8.0.0/24` in the `Allow` section
+   - Let the default `all` in the `Deny` section
+   
+5. Click **Save**
+
+### Configure Portainer as Proxy Host
+
+1. Go to **Proxy Hosts** → **Add Proxy Host**
+2. **Details**:
+   - Domain Names: `portainer.<your-domain>.fr`
+   - Scheme: `https` ← **Important!**
+   - Forward Hostname / IP: `portainer`
+   - Forward Port: `9443`
+   - Enable **Websockets Support**
+   - Enable **Block Common Exploits**
+3. **SSL**:
+   - Request a new SSL Certificate (Let's Encrypt)
+   - Enable **Force SSL**
+   - ✅ Check **"Ignore Invalid SSL"**
+4. **Access List**: Select the access list you created earlier
+5. Click **Save**
+
+### Configure NPM as Proxy Host (optional)
+
+To access NPM via a clean URL instead of `10.8.0.1:81`:
+
+1. Go to **Proxy Hosts** → **Add Proxy Host**
+2. **Details**:
+   - Domain Names: `nginx.<your-domain>.fr`
+   - Scheme: `http`
+   - Forward Hostname / IP: `nginx-proxy-manager`
+   - Forward Port: `81`
+   - Enable **Block Common Exploits**
+3. **SSL**: Request a Let's Encrypt certificate if desired
+4. **Access List**: Select the access list you created earlier
+5. Click **Save**
+
+### Common Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| **403 Forbidden** | Access List misconfigured | Ensure `allow 10.8.0.0/24` comes BEFORE `deny all` |
+| **502 Bad Gateway** | Container unreachable | Use the container name (`portainer`), not IP |
+| **HTTP to HTTPS error** | Wrong scheme | Set Scheme to `https` for Portainer (port 9443) |
+
+---
+
+## 5. Split DNS for Private Services
+
+Split DNS allows you to have public and private subdomains:
+- **Public**: `<your-domain>.fr` → accessible to everyone
+- **Private**: `portainer.<your-domain>.fr`, `nginx.<your-domain>.fr` → accessible only via VPN
 
 ### How it works
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Internet User                            │
+│                       Internet User                             │
 │                              │                                  │
 │                              ▼                                  │
 │                    ┌─────────────────┐                          │
-│                    │   example.fr    │ ✅ Public                │
-│                    │  (Nginx NPM)    │                          │
+│                    │   <your-domain>.fr    │ ✅ Public                │
 │                    └─────────────────┘                          │
 │                              │                                  │
 │              ┌───────────────┴───────────────┐                  │
 │              ▼                               ▼                  │
-│    portainer.example.fr            nginx.example.fr             │
+│    portainer.<your-domain>.fr            nginx.<your-domain>.fr             │
 │         ❌ Blocked                    ❌ Blocked                │
-│    (Access List: VPN only)      (Access List: VPN only)         │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│                     VPN User (WireGuard)                        │
+│                    VPN User (WireGuard)                         │
 │                              │                                  │
 │                    DNS: 10.8.0.1 (dnsmasq)                      │
 │                              │                                  │
 │              ┌───────────────┴───────────────┐                  │
 │              ▼                               ▼                  │
-│    portainer.example.fr            nginx.example.fr             │
+│    portainer.<your-domain>.fr            nginx.<your-domain>.fr             │
 │     → 10.8.0.1 ✅                   → 10.8.0.1 ✅               │
-│    (Split DNS resolution)       (Split DNS resolution)          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Configuration
+### Add a subdomain manually
 
-#### 1. Configure private domains
-
-Edit `inventories/prod/group_vars/all/secrets.yml`:
-
-```yaml
-# Your base domain
-base_domain: "example.fr"
-
-# Private subdomains accessible only via VPN
-private_domains:
-  - name: "Portainer"
-    subdomain: "portainer"
-    base_domain: "{{ base_domain }}"
-  - name: "Nginx Proxy Manager"
-    subdomain: "nginx"
-    base_domain: "{{ base_domain }}"
-```
-
-#### 2. Run the playbook
+You can add a new private subdomain without re-running Ansible:
 
 ```bash
-ansible-playbook playbooks/site.yml -K
-```
+# Connect to the server
+ssh user@10.8.0.1
 
-This installs **dnsmasq** as a local DNS server that:
-- Resolves private subdomains to the WireGuard server IP (`10.8.0.1`)
-- Forwards all other DNS queries to Cloudflare (`1.1.1.1`)
-
-#### 3. Configure Nginx Proxy Manager
-
-After running the playbook, connect to your VPN and access Nginx Proxy Manager:
-
-**URL**: `http://10.8.0.1:81`
-
-**Default credentials**:
-- Email: `admin@example.com`
-- Password: `changeme`
-
-> You will be prompted to change these on first login.
-
-##### Step 1: Create the VPN-Only Access List
-
-1. Go to **Access Lists** → **Add Access List**
-2. **Details** tab:
-   - Name: `VPN Only`
-3. **Access** tab:
-   - Click **Add** and enter: `allow` → `10.8.0.0/24`
-   - Click **Add** and enter: `deny` → `all`
-   
-   > ⚠️ **Important**: The `allow` rule MUST come before `deny all`, otherwise all access will be blocked (403 Forbidden).
-
-4. Click **Save**
-
-##### Step 2: Configure Portainer Proxy Host
-
-> 💡 **First-time setup**: Before configuring the proxy, access Portainer directly at `https://10.8.0.1:9443/` to create your admin user. You must do this within a few minutes after first launch, otherwise Portainer will disable registration for security.
-
-Portainer uses HTTPS on port 9443, so the configuration is specific:
-
-1. Go to **Proxy Hosts** → **Add Proxy Host**
-2. **Details** tab:
-   - Domain Names: `portainer.example.fr`
-   - Scheme: `https` ← **Important!**
-   - Forward Hostname / IP: `portainer` (Docker container name)
-   - Forward Port: `9443`
-   - Enable **Websockets Support**
-3. **SSL** tab:
-   - Request a new SSL Certificate (Let's Encrypt) or use your own
-   - Enable **Force SSL**
-   - ✅ Check **"Ignore Invalid SSL"** (Portainer uses a self-signed certificate)
-4. **Access List**: Select `VPN Only`
-5. Click **Save**
-
-> 💡 If you get "Client sent an HTTP request to an HTTPS server", you forgot to set Scheme to `https`.
-
-##### Step 3: Configure Nginx Proxy Manager Proxy Host (optional)
-
-To access NPM via a clean URL instead of `10.8.0.1:81`:
-
-1. Go to **Proxy Hosts** → **Add Proxy Host**
-2. **Details** tab:
-   - Domain Names: `nginx.example.fr`
-   - Scheme: `http`
-   - Forward Hostname / IP: `nginx-proxy-manager` (or `127.0.0.1`)
-   - Forward Port: `81`
-3. **SSL** tab: Request a new SSL Certificate if desired
-4. **Access List**: Select `VPN Only`
-5. Click **Save**
-
-##### Common Errors
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| **403 Forbidden** | Access List misconfigured | Ensure `allow 10.8.0.0/24` comes BEFORE `deny all` |
-| **502 Bad Gateway** | Container not reachable | Use container name (`portainer`), not IP. Check both are on `proxy_network` |
-| **HTTP to HTTPS error** | Wrong scheme | Set Scheme to `https` for Portainer (port 9443) |
-| **SSL errors** | Self-signed certificate rejected | Enable "Ignore Invalid SSL" in SSL tab |
-
-#### 4. Update WireGuard client configuration
-
-Make sure your WireGuard client uses the VPN's DNS:
-
-```ini
-[Interface]
-PrivateKey = YOUR_PRIVATE_KEY
-Address = 10.8.0.2/32
-DNS = 10.8.0.1    # ← Important: Use VPN DNS for split DNS
-
-[Peer]
-PublicKey = SERVER_PUBLIC_KEY
-Endpoint = PI_PUBLIC_IP:51820
-AllowedIPs = 10.8.0.0/24
-PersistentKeepalive = 25
-```
-
-### Testing
-
-1. **Without VPN**: 
-   - `example.fr` → Works ✅
-   - `portainer.example.fr` → 403 Forbidden ❌
-
-2. **With VPN connected**:
-   - `example.fr` → Works ✅
-   - `portainer.example.fr` → Works ✅ (resolves to 10.8.0.1)
-
-3. **Verify DNS resolution** (with VPN):
-   ```bash
-   nslookup portainer.example.fr 10.8.0.1
-   # Should return 10.8.0.1
-   ```
-
-### Adding a New Private Subdomain Manually
-
-You can add a new private subdomain (e.g., `pocketbase.example.fr`) without re-running the Ansible playbook, though you can also add it via the playbook by updating `secrets.yml` and running `ansible-playbook playbooks/site.yml -K`.
-
-**Manual method:**
-
-#### 1. SSH into your server
-
-```bash
-ssh user@10.8.0.1  # or your server IP
-```
-
-#### 2. Add DNS entry to dnsmasq
-
-```bash
+# Add the DNS entry
 sudo nano /etc/dnsmasq.d/split-dns.conf
-```
+# Add: address=/new.<your-domain>.fr/10.8.0.1
 
-Add the following line:
-
-```
-# pocketbase.example.fr - resolves to WireGuard server IP
-address=/pocketbase.example.fr/10.8.0.1
-```
-
-Save and exit (Ctrl+X, Y, Enter).
-
-#### 3. Restart dnsmasq
-
-```bash
+# Restart dnsmasq
 sudo systemctl restart dnsmasq
 ```
 
-#### 4. Verify DNS resolution
+Then configure the Proxy Host in Nginx Proxy Manager.
 
-From your client (with VPN connected):
+Alternatively, add the subdomain to `secrets.yml` and re-run the playbook for a reproducible setup.
+
+### Test
+
+1. **Without VPN**: `portainer.<your-domain>.fr` → 403 Forbidden ❌
+2. **With VPN**: `portainer.<your-domain>.fr` → Works ✅
 
 ```bash
-nslookup pocketbase.example.fr 10.8.0.1
+# Verify DNS resolution (with VPN)
+nslookup portainer.<your-domain>.fr 10.8.0.1
 # Should return 10.8.0.1
 ```
 
-#### 5. Configure Nginx Proxy Manager
-
-1. Go to **Proxy Hosts** → **Add Proxy Host**
-2. **Details** tab:
-   - Domain Names: `pocketbase.example.fr`
-   - Scheme: `http` (or `https` if your app uses SSL)
-   - Forward Hostname / IP: IP of your Pocketbase container/service
-   - Forward Port: Port of your Pocketbase service
-   - Enable **Websockets Support** if needed
-3. **SSL** tab (optional): Request Let's Encrypt certificate
-4. **Access List**: Select `VPN Only`
-5. Save
-
-#### 6. Test
-
-With VPN connected, visit `https://pocketbase.example.fr` in your browser. It should work! ✅
-
-> **Note**: This manual method is useful for quick testing. For a permanent setup, it's recommended to add the subdomain to `secrets.yml` and re-run the playbook so the configuration is version-controlled and reproducible.
-
 ---
 
-## Diagnostic Commands
+## 6. Diagnostic Commands
 
 ```bash
-# Check if dnsmasq is running
+# Service status
 sudo systemctl status dnsmasq
+sudo systemctl status wg-quick@wg0
 
-# Test DNS resolution (from client with VPN)
-nslookup portainer.example.fr 10.8.0.1
+# Docker containers
+docker ps
+docker logs nginx-proxy-manager
+docker logs portainer
 
-# Check Docker networks
+# Docker networks
 docker network ls
 docker network inspect proxy_network
 
-# Check running containers
-docker ps
-
-# Check NPM logs
-docker logs nginx-proxy-manager
-
-# Check Portainer logs
-docker logs portainer
+# DNS test (with VPN)
+nslookup portainer.<your-domain>.fr 10.8.0.1
 ```
