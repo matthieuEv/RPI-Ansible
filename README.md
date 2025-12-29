@@ -249,14 +249,14 @@ Split DNS allows you to have public and private subdomains:
 │                       Internet User                             │
 │                              │                                  │
 │                              ▼                                  │
-│                    ┌─────────────────┐                          │
-│                    │   <your-domain>.fr    │ ✅ Public                │
-│                    └─────────────────┘                          │
+│                    ┌──────────────────────┐                     │
+│                    │   <your-domain>.fr   │ ✅ Public           │
+│                    └──────────────────────┘                     │
 │                              │                                  │
 │              ┌───────────────┴───────────────┐                  │
 │              ▼                               ▼                  │
-│    portainer.<your-domain>.fr            nginx.<your-domain>.fr             │
-│         ❌ Blocked                    ❌ Blocked                │
+│    portainer.<your-domain>.fr          nginx.<your-domain>.fr   │
+│         ❌ Blocked                    ❌ Blocked                 │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
@@ -266,8 +266,8 @@ Split DNS allows you to have public and private subdomains:
 │                              │                                  │
 │              ┌───────────────┴───────────────┐                  │
 │              ▼                               ▼                  │
-│    portainer.<your-domain>.fr            nginx.<your-domain>.fr             │
-│     → 10.8.0.1 ✅                   → 10.8.0.1 ✅               │
+│    portainer.<your-domain>.fr         nginx.<your-domain>.fr    │
+│     → 10.8.0.1 ✅                   → 10.8.0.1 ✅                │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
