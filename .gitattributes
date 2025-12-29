@@ -1,0 +1,6 @@
+# All Ansible playbooks and roles = YAML
+*.yml linguist-language=YAML
+*.yaml linguist-language=YAML
+
+# Templates remain Jinja, but we exclude them from the primary language calculation
+*.j2 linguist-vendored
