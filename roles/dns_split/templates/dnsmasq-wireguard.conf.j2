@@ -3,7 +3,7 @@ listen-address={{ wireguard.server_ip | regex_replace('/\\d+$', '') }}
 listen-address=127.0.0.1
 
 # Bind to specific interfaces only
-bind-interfaces
+bind-dynamic
 
 # Don't forward queries without a domain
 domain-needed
