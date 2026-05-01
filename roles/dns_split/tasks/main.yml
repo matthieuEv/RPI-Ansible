@@ -30,6 +30,24 @@
     mode: '0644'
   notify: Restart dnsmasq
 
+- name: Ensure dnsmasq starts after WireGuard is ready
+  copy:
+    dest: /etc/systemd/system/dnsmasq.service.d/override.conf
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      [Unit]
+      After=network-online.target wg-quick@{{ wireguard.interface }}.service
+      Wants=network-online.target
+      Requires=wg-quick@{{ wireguard.interface }}.service
+
+      [Service]
+      ExecStartPre=/bin/sh -c 'for i in $(seq 1 20); do ip -4 addr show dev {{ wireguard.interface }} | grep -q "{{ wireguard.server_ip }}" && exit 0; sleep 1; done; echo "{{ wireguard.interface }} with {{ wireguard.server_ip }} not ready"; exit 1'
+  notify:
+    - Reload systemd
+    - Restart dnsmasq
+
 - name: Enable dnsmasq service
   systemd:
     name: dnsmasq
