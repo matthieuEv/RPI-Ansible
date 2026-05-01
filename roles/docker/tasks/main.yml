@@ -251,3 +251,27 @@
 - name: Deploy Nginx Proxy Manager
   command: docker compose -p nginx-proxy-manager -f {{ docker_setups_dir }}/nginx.yml up -d
   changed_when: false
+
+- name: Write Docker update helper script
+  copy:
+    dest: "{{ docker_setups_dir }}/docker-update"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+    content: |
+      #!/bin/sh
+
+      if [ "$1" = "npm" ]; then
+        docker compose -p nginx-proxy-manager -f nginx.yml pull
+        docker compose -p nginx-proxy-manager -f nginx.yml up -d
+
+      elif [ "$1" = "portainer" ]; then
+        docker compose -p portainer -f portainer.yml pull
+        docker compose -p portainer -f portainer.yml up -d
+
+      else
+        echo "Usage:"
+        echo "  ./docker-update npm"
+        echo "  ./docker-update portainer"
+        exit 1
+      fi
